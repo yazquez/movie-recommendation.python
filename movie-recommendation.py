@@ -1,23 +1,24 @@
+# coding: utf-8
+
+
 import nltk
-import gensim
-import numpy as np
 from nltk.tokenize import RegexpTokenizer
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 from gensim import corpora, models, similarities
+import json
 
 
 def load_movies(max_movies=90000):
     def load_plot_summaries():
-        plot_summaries_file = open("data/plot_summaries.fake.txt", "r")
-        # plot_summaries_file = open("data/plot_summaries.txt", "r", encoding="utf8")
+        # plot_summaries_file = open("data/plot_summaries.fake.txt", "r", encoding="utf8")
+        plot_summaries_file = open("data/plot_summaries.txt", "r", encoding="utf8")
         plot_summaries = dict()
         for plot_summary_line in plot_summaries_file:
             plot_summary_data = plot_summary_line.split('\t')
             # Summaries structure
             # [0] Wikipedia movie ID
             # [1] Summary plot
-
             plot_summary = dict()
             plot_summary['id'] = plot_summary_data[0]
             plot_summary['summary'] = plot_summary_data[1]
@@ -26,16 +27,19 @@ def load_movies(max_movies=90000):
 
         return plot_summaries
 
+    print("Cargando datos de peliculas")
+
     plot_summaries = load_plot_summaries()
 
-    metadata_file = open("data/movie.metadata.fake.tsv", "r")
-    # metadata_file = open("data/movie.metadata.tsv", "r", encoding="utf8")
-    movies = []
+    # metadata_file = open("data/movie.metadata.fake.tsv", encoding="utf8")
+    metadata_file = open("data/movie.metadata.tsv", "r", encoding="utf8")
+    movies =  dict()
 
     movies_count = 0
 
     for metadata_line in metadata_file:
         movie_metadata = metadata_line.split('\t')
+
         # Metadata structure
         # [0] Wikipedia movie ID
         # [1] Freebase movie ID
@@ -49,18 +53,21 @@ def load_movies(max_movies=90000):
 
         id = movie_metadata[0]
 
-        # Añadimos la pelicula solo si tiene sinopsis
+        # Añadimos la pelicula solo si tiene sinopsis, incluimos una lista con las claves de los generos
         if (id in plot_summaries) & (movies_count < max_movies):
             movies_count += 1
             movie = dict()
             movie['id'] = id
             movie['name'] = movie_metadata[2]
             movie['date'] = movie_metadata[3]
+            movie['genres'] = list(json.loads(movie_metadata[8].replace("\"\"", "\"").replace("\"{", "{").replace("}\"", "}")).keys())
             movie['summary'] = plot_summaries[id].get('summary')
-
-            movies.append(movie)
+            movies[id] = movie
 
     return movies
+
+
+movies = load_movies(10)
 
 
 def get_global_texts(movies):
@@ -70,11 +77,8 @@ def get_global_texts(movies):
             if word not in stop_words:
                 words.append(stemmer.stem(word))
 
-        words = []
-        tokenizer = RegexpTokenizer(r'\w+')
-        stop_words = set(stopwords.words('english'))
-        stemmer = SnowballStemmer("english")
 
+        words = []
         for chunk in nltk.ne_chunk(nltk.pos_tag(tokenizer.tokenize(text))):
             # nltk.word_tokenize    devuelve la lista de palabras que forman la frase (tokenización)
             # nltk.pos_tag          devuelve el part of speech (categoría) correspondiente a la palabra introducida
@@ -91,8 +95,15 @@ def get_global_texts(movies):
 
         return words
 
+    print("Extrayendo palabras de los textos")
+    tokenizer = RegexpTokenizer(r'\w+')
+    stop_words = set(stopwords.words('english'))
+    stemmer = SnowballStemmer("english")
+
     global_texts = []
-    [global_texts.append(get_words(movie['summary'])) for movie in movies]
+
+    [global_texts.append(get_words(movie['summary'])) for movie in movies.values()]
+
     return global_texts
 
 
@@ -120,42 +131,44 @@ def create_lsi_model(corpus_tfidf, dictionary, total_lsa_topics):
     return lsi, similarity_matrix
 
 
-def crearModeloSimilitud(movies, corpus_tfidf, lsi, similarity_matrix, similarity_threshold):
+def create_similitary_model(movies, corpus_tfidf, lsi, similarity_matrix, similarity_threshold):
     print("Creando enlaces de similitud entre películas")
     for i, doc in enumerate(corpus_tfidf):
-        print("====================================================================================")
-        print("Pelicula I = ", i, "  ", movies[i]['id'], "  ", movies[i]['summary'])
-
         vec_lsi = lsi[doc]
         similarity_index = similarity_matrix[vec_lsi]
-
-        # print("doc>>              ", doc)
-        # print("vec_lsi>>          ", vec_lsi)
-        # print("indice_similitud>> ", indice_similitud)
-
-        similar_movies = create_similitary_model(movies[i], movies, similarity_index, similarity_threshold)
-
-        [print(similarity, movie['summary']) for (movie, similarity) in similar_movies]
+        movies[i]['similars'] = search_similitary_movies(movies[i], movies, similarity_index, similarity_threshold)
 
 
-def create_similitary_model(movie, movies, similarity_index, similarity_threshold):
+def search_similitary_movies(movie, movies, similarity_index, similarity_threshold):
+    def compare_genres(movie1, movie2):
+        return len(set(movie1['genres']).intersection(movie2['genres']))
+
     similar_movies = []
-
     for j, elemento in enumerate(movies):
-        similarity = similarity_index[j]
-        if (similarity > similarity_threshold) & (movies[j]['id'] != movie['id']):  # Para que e incluya a si misma
-            similar_movies.append((movies[j], similarity))
+        if (movies[j]['id'] != movie['id']):  # Para que no se incluya a si misma
+            common_genres = compare_genres(movie, movies[j])
+            similarity = similarity_index[j] + common_genres / 10
+            if (similarity > similarity_threshold):
+                similar_movies.append((j, similarity, common_genres ))
 
     return sorted(similar_movies, key=lambda item: -item[1])
 
 
+def show_coincidences(movie_index):
+    print("\n====================================================================================")
+    print("Pelicula Id = ", movies[movie_index]['id'], "  Index=", movie_index, movies[movie_index]['summary'])
+    for j, similar in enumerate(movies[movie_index]['similars']):
+        similar_movie_index, similarity, common_genres = similar
+        print("Similitud:", similarity, "Generos comunes: ", common_genres, "Sinopsis:", movies[similar_movie_index]['summary'])
+
+
 ### Valores clave para controlar el proceso
-TOTAL_LSA_TOPICS = 50
+TOTAL_LSA_TOPICS = 500
 # Limita el numero de terminos, por supuesto tiene que ver con el tamaño de la mustra, mientras más peliculas tengamos mas terminos tendremos y por tanto la reduccion seria mayor
 # estamos clusterizando las peliculas en TOTAL_TOPICOS_LSA cluster
-SIMILARITY_THRESHOLD = 0.2
+SIMILARITY_THRESHOLD = 0.4
 
-movies = load_movies(20)
+movies = load_movies(10)
 
 # Lista con la lista de palabras "diferentes" para cada sinopsis
 global_texts = get_global_texts(movies)
@@ -172,12 +185,21 @@ corpus_tfidf = create_tfidf(corpus)
 
 (lsi, similarity_matrix) = create_lsi_model(corpus_tfidf, dictionary, TOTAL_LSA_TOPICS)
 
-crearModeloSimilitud(movies, corpus_tfidf, lsi, similarity_matrix, SIMILARITY_THRESHOLD)
+create_similitary_model(movies, corpus_tfidf, lsi, similarity_matrix, SIMILARITY_THRESHOLD)
 
-exit()
+for i, e in enumerate(movies):
+    show_coincidences(i)
 
-print(dictionary)
+str = "Enter index movie: [0-" + str(len(movies)) + "], -1 to finish: "
 
-print(global_texts)
+movie_index = input(str)
+while movie_index.strip() != '-1':
+    try:
+        movie_index = int(movie_index)
+        if (movie_index<=len(movies)):
+            show_coincidences(movie_index)
+    except:
+        pass
+    movie_index = input(str)
 
-[print(m['name']) for m in movies]
+
