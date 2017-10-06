@@ -1,0 +1,43 @@
+Usando la API Rest de Github descarga la información de todos los proyectos que cumplen una serie de criterios, estos son los siguientes:
+  - Identificados como proyectos Python
+  - Creado entre el 1 de Enero de 2012 y hasta la fecha actual
+  - Con un mínimo de 10 estrellas
+
+Toda la información es almacenada en MongoDB concretamente en una colección llamada projects de una BD llamada github, la información almacenada es la siguiente:
+            'id': github_project["id"],
+            'name': github_project["name"],
+            'full_name': github_project["full_name"],
+            'created_at': github_project["id"],
+            'git_url': github_project["git_url"],
+            'description': github_project["description"],
+            'language': github_project["language"],
+            'stars': github_project["stargazers_count"],
+            'done': Se usa a nivel interno, indica si un proyecto está procesado, esto es identificados las librerías que usa y el fichero README cargado, en los puntos siguientes se detallan estos dos datos
+            'readme_txt': Almacenará el texto de los ficheros README de los proyectos, será la información base para el sistema de recomendación
+            'library': Lista con las librerías que el proyecto usa, en principio estará vacía y se alimentará cuando se procese el proyecto
+            'raw_data': toda la información del proyecto sin procesar por si más adelante es necesario algún dato que en estos momentos no parece relevante
+
+Cuando se usa la API de Github sin autenticación existen una serie de límites que no podemos superar, el primero es que el número máximo de resultados que cualquier consulta puede devolver
+es de 1000, para salvar este impedimento, vamos a realizar sucesivas consultas restringiendo las llamadas a un solo día del intervalo que vamos a cubrir.
+
+Por otra parte, existe otra restricción en el uso de la API, el número de llamadas por minuto está limitado a 60, podríamos incrementar esta cantidad si las llamadas son autenticadas,
+esto es usar por ejemplo un "client ID" y "secret"  como partes de la consulta, pero vamos abordar una estrategia diferente. Se irán realizando las consultas sin atender a los límites y cuando ese límite se supere, se suspenderá el proceso durante 61 segundos y posteriormente se reanudará
+por el punto en el que iba.
+
+Si se desea consultar los límites comentados, podemos hacer una consulta, por ejemplo usando curl
+
+curl -i https://api.github.com/users/octocat
+HTTP/1.1 200 OK
+Date: Mon, 01 Jul 2013 17:27:06 GMT
+Status: 200 OK
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 56
+X-RateLimit-Reset: 1372700873
+
+En la cabecera de la respuesta nos muestra los límites:
+
+Header Name    Description
+X-RateLimit-Limit       El número máximo de solicitudes que se le permite hacer por hora.
+X-RateLimit-Remaining   El número de solicitudes restantes en la ventana de límite de velocidad actual.
+X-RateLimit-Reset       La hora a la que se restablece la ventana de límite de velocidad actual en segundos UTC.
+

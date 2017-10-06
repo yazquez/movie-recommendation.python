@@ -1,0 +1,33 @@
+TODO
+[ ] Detección del idioma del projecto
+
+
+https://api.github.com/search/repositories?q=language:python&sort=stars&order=desc
+"total_count": 1903990,
+"incomplete_results": false
+
+https://developer.github.com/v3/search/#search-repositories
+
+https://api.github.com/search/repositories?q=language:Python+created:>=2012-01-01&type=Repositories
+
+https://api.github.com/search/repositories?q=language:Python+created:>=2012-01-01+stars:>=1&type=Repositories
+$ curl https://raw.githubusercontent.com/vinta/awesome-python/master/README.md
+
+
+"total_count": 49150,
+
+cursor=db.images.find({}{'id':1,'image_path':1,'_id':0},no_cursor_timeout=True)
+for i in cursor:
+   .....
+   .....+
+cursor.close() # use this or cursor keeps waiting so ur resources are used up
+
+
+
+g.updateMany({}, {$set: {done: false}})
+
+
+1244 + 4151 new projects
+
+
+borrado: 27023865

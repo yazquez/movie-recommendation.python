@@ -1,0 +1,27 @@
+- Algunos datos
+  - Proyectos Python en Github
+  - Proyectos Python desde 1/1/2012
+  - Proyectos Python con más de 10 estrellas desde 1/1/2012
+
+
+Factores a tener en cuenta para la similitud
+- Descripción del proyecto
+- Fichero Readme
+- Librerías usadas
+
+
+Documentacion teórica "inverse document frequency"
+
+
+Como se usa
+Opcion A) Indicando nuestro propio proyecto en Github
+Opcion B) Indicando manualmente el sumario, la descripción y la lista de librerías usadas
+
+
+
+Otro uso: tomando como referencia los proyectos que un usuario sigue, buscar otros proyectos similares
+
+
+
+
+
