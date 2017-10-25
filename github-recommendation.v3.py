@@ -1,8 +1,13 @@
+
+
 # coding: utf-8
 
 # # Importación de librerías y módulos
 
 # In[1]:
+
+
+from collections import defaultdict
 
 from pymongo import MongoClient
 import nltk
@@ -14,6 +19,13 @@ from nltk.stem import SnowballStemmer
 from gensim import corpora, models, similarities, matutils
 import numpy as np
 
+import os
+import uuid
+import re
+
+
+
+
 
 # ## Carga de los datos
 # 
@@ -21,28 +33,31 @@ import numpy as np
 
 # In[2]:
 
-def load_projects3(max_projects=90000):
+def load_projects(max_projects=90000):
     def get_repository():
         client = MongoClient('localhost', 27017)
         db = client.github
         return db.projects
 
-    projects = get_repository()
-    projects = []
+    projects_repository = get_repository()
 
-    for project in projects.find({'done': True}).limit(1000):
-        project = dict()
-        project['id'] = project['id']
-        project['name'] = project['name']
-        project['date'] = project['created_at']
-        project['libraries'] = project['library']
-        project['readme_txt'] = project['readme_txt']
-        projects.append(project)
+    return list(projects_repository.find({'done': True}).limit(max_projects))
+    # projects = []
+    #
+    # for project in projects_repository.find({'done': True}).limit(max_projects):
+    #     project = dict()
+    #     project['id'] = project['id']
+    #     project['name'] = project['name']
+    #     project['date'] = project['created_at']
+    #     project['libraries'] = project['library']
+    #     project['readme_txt'] = project['readme_txt']
+    #     projects.append(project)
+    #
+    # return projects
 
-    return projects
 
 
-def load_projects(max_projects=90000):
+def load_projects2(max_projects=90000):
     def load_plot_summaries():
         plot_summaries_file = open("data/plot_summaries.fake.txt", "r", encoding="utf8")
         # plot_summaries_file = open("data/plot_summaries.txt", "r", encoding="utf8")
@@ -82,7 +97,7 @@ def load_projects(max_projects=90000):
         # [5] Project runtime
         # [6] Project languages (Freebase ID:name tuples)
         # [7] Project countries (Freebase ID:name tuples)
-        # [8] Project libraries (Freebase ID:name tuples)
+        # [8] Project library (Freebase ID:name tuples)
 
         id = project_metadata[0]
 
@@ -93,7 +108,7 @@ def load_projects(max_projects=90000):
             project['id'] = id
             project['name'] = project_metadata[2]
             project['date'] = project_metadata[3]
-            project['libraries'] = list(json.loads(project_metadata[8].replace("\"\"", "\"").replace("\"{", "{").replace("}\"", "}")).values())
+            project['library'] = list(json.loads(project_metadata[8].replace("\"\"", "\"").replace("\"{", "{").replace("}\"", "}")).values())
             project['readme_txt'] = plot_summaries[id].get('readme_txt')
             projects.append(project)
 
@@ -106,7 +121,7 @@ def load_projects(max_projects=90000):
 
 # In[3]:
 
-projects = load_projects(1000)
+projects = load_projects(10)
 
 # # Procesado de las sinópsis
 # 
@@ -145,7 +160,7 @@ def get_words(text):
     return words
 
 
-def get_global_texts(projects):
+def get_global_texts_original(projects):
     print("Extrayendo palabras de los textos...")
     global_texts = []
 
@@ -153,13 +168,22 @@ def get_global_texts(projects):
 
     return global_texts
 
+def get_global_texts(projects):
+    print("Extrayendo librerías...")
+    global_texts = []
+
+    [global_texts.append(project['library']) for project in projects]
+
+    return global_texts
+
+
 
 # Y la ejecutamos, tendremos una lista de listas, en la que para cada proyecto tendremos las palabras que definen su sinopsis
 
 # In[5]:
 
 
-global_texts = get_global_texts(projects)
+global_texts = get_global_texts_original(projects)
 
 
 # A modo de ejemplo, mostramos las 5 primeras entradas de la primera proyecto
@@ -233,7 +257,7 @@ corpus_tfidf[0]
 # In[11]:
 
 TOTAL_LSA_TOPICS = 5
-SIMILARITY_THRESHOLD = 0.6
+SIMILARITY_THRESHOLD = 0.01
 LIBRARY_COINCIDENCE_RATE = 0.01
 
 
@@ -268,10 +292,10 @@ def create_lsi_model(corpus_tfidf, dictionary, total_lsa_topics):
 # compartan librerías con el proyecto analizado, de este modo, además del indice de similitud calcularo anteriormente, vamos a sumar el valor de la constante LIBRARY_COINCIDENCE_RATE
 # por cada librería coincidente. A
 # Para cada proyecto que supere el umbral, almacenaremos el índice dentro de la matriz de proyectos, para localizarla posteriormente, y el grado de similitud
-def get_similarities(doc, libraries):
-    def library_score(libraries_to_compare):
-        common_libraries = len(set(libraries).intersection(libraries_to_compare))
-        return common_libraries * LIBRARY_COINCIDENCE_RATE
+def get_similarities_old(doc, library):
+    def library_score(library_to_compare):
+        common_library = len(set(library).intersection(library_to_compare))
+        return common_library * LIBRARY_COINCIDENCE_RATE
 
     project_similarities = []
 
@@ -284,15 +308,179 @@ def get_similarities(doc, libraries):
 
     for sim in similarities:
         similarity_project = projects[int(sim[0])]
-        similarity_score = sim[1] + library_score(similarity_project["libraries"])
+        similarity_score = sim[1] + library_score(similarity_project["library"])
         if similarity_score > SIMILARITY_THRESHOLD:
             project_similarities.append((similarity_project, similarity_score))
     return(project_similarities)
 
-project_similarities = get_similarities("A murder woman", ["Mystery", "Drama", "Biographical film"])
+# project_similarities = get_similarities("A murder woman", ["Mystery", "Drama", "Biographical film"])
+# for similarity in project_similarities:
+#     print("Project: {0}: - Similarity: {1}".format(similarity[0]["name"], similarity[1]))
+
+ROOT_PATH = "d:/tfm/tmp"
+CLONE_COMMAND = "git clone {0} {1}"
+
+def proccess_url(git_url):
+    def process_python_file(project, file_path):
+        def add_to_list(item):
+            if not item in library:
+                library.append(item)
+
+        library = project['library']
+        pattern = '(?m)^(?:from[ ]+(\S+)[ ]+)?import[ ]+(\S+)[ ]*$'
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                match = re.search(pattern, line)
+                if match:
+                    if match.group(1) is not None:
+                        add_to_list(match.group(1))
+                    else:
+                        add_to_list(match.group(2))
+        project['library'] = library
+
+    def process_readme_file(project, file_path):
+        with open(file_path, 'r') as f:
+            project['readme_txt'] = f.read()
+
+    project = dict()
+    os.chdir(ROOT_PATH)
+    dir_name = uuid.uuid4().hex
+    path = ROOT_PATH + "/" + dir_name
+
+    if not os.path.isdir(path):
+        os.system(CLONE_COMMAND.format(git_url, dir_name))
+        project['git_url'] = git_url
+        project['library'] = []
+        for root, dirs, files in os.walk(path):
+            for file in files:
+                try:
+                    if file.endswith(".py"):
+                        process_python_file(project, os.path.join(root, file))
+                    else:
+                        if file.lower().startswith("readme."):
+                            process_readme_file(project, os.path.join(root, file))
+                except:
+                    pass
+
+    return project
+
+def get_similarities_from_project(project):
+    def library_score(library_to_compare):
+        common_library = len(set(library).intersection(library_to_compare))
+        return common_library * LIBRARY_COINCIDENCE_RATE
+
+    library = project['library']
+    doc = project['readme_txt']
+
+    project_similarities = []
+
+    vec_bow = dictionary.doc2bow(get_words(doc))
+
+    vec_lsi = lsi[vec_bow]  # convert the query to LSI space
+
+    similarities = similarity_matrix[vec_lsi]
+    similarities = sorted(enumerate(similarities), key=lambda item: -item[1])
+
+    for sim in similarities:
+        similarity_project = projects[int(sim[0])]
+        similarity_score = sim[1] + library_score(similarity_project["library"])
+        if similarity_score > SIMILARITY_THRESHOLD:
+            project_similarities.append((similarity_project, similarity_score))
+    return(project_similarities)
+
+def get_similarities_from_project_library(project):
+    doc = project['library']
+
+    project_similarities = []
+
+    vec_bow = dictionary.doc2bow(doc)
+
+    vec_lsi = lsi[vec_bow]  # convert the query to LSI space
+
+    similarities = similarity_matrix[vec_lsi]
+    similarities = sorted(enumerate(similarities), key=lambda item: -item[1])
+
+    for sim in similarities:
+        similarity_project = projects[int(sim[0])]
+        similarity_score = sim[1]
+        if similarity_score > SIMILARITY_THRESHOLD:
+            project_similarities.append((similarity_project, similarity_score))
+    return(project_similarities)
+
+def get_similarities_final(words, library):
+    project_similarities = []
+
+    vec_bow = dictionary.doc2bow(words)
+
+    vec_lsi = lsi[vec_bow]  # convert the query to LSI space
+
+    similarities = similarity_matrix[vec_lsi]
+    similarities = sorted(enumerate(similarities), key=lambda item: -item[1])
+
+    for sim in similarities:
+        similarity_project = projects[int(sim[0])]
+        similarity_score = sim[1]
+        if similarity_score > SIMILARITY_THRESHOLD:
+            project_similarities.append((similarity_project, similarity_score))
+    return(project_similarities)
+
+project = proccess_url("https://github.com/yazquez/movie-recommendation.python.git")
+
+project_similarities = get_similarities_from_project_library(project)
+
+
+def get_similarities(doc):
+    ''' Calcula las similitudes de un documento, expresado este como una lista de palabras'''
+    project_similarities = []
+
+    # Convertimos el documento al espacio LSI
+    vec_bow = dictionary.doc2bow(doc)
+    vec_lsi = lsi[vec_bow]
+
+    similarities = similarity_matrix[vec_lsi]
+    similarities = sorted(enumerate(similarities), key=lambda item: -item[1])
+
+    for sim in similarities:
+        similarity_project = int(sim[0])
+        similarity_score = sim[1]
+        if similarity_score > SIMILARITY_THRESHOLD:
+            project_similarities.append((similarity_project, similarity_score))
+
+    return (project_similarities)
+
+
+poc_readme_doc = get_words("works on Windows and write down some installation instructions")
+poc_library = ['sys', 'os', 'json', 'codecs', 'shutil', 're']
+project_similarities = get_similarities(poc_readme_doc)
+
 
 for similarity in project_similarities:
-    print("Project: {0}: - Similarity: {1}".format(similarity[0]["name"], similarity[1]))
+    print("Project: {0}: - Similarity: {1}".format(projects[similarity[0]]["name"], similarity[1]))
+
+
+exit()
+
+# for similarity in project_similarities[:10]:
+#     print("Project: {0}: - Similarity: {1}".format(projects[similarity[0]]["name"], similarity[1]))
+
+# El objetivo final  no es encontrar proyectos similares, sino encontrar las librerias que usan esos proyectos similares. Así pues, recorremos esos proyectos e identificamos esas librerías.
+# Descartando las que nuestro proyecto ya incluye
+library_similarities=defaultdict(float)
+
+for similarity in project_similarities[:10]:
+    project_similarity = similarity[1]
+    project_libraries = projects[similarity[0]]["library"]
+    for library in project_libraries:
+        if library not in poc_library:
+            library_similarities[library] += project_similarity
+
+
+for library in sorted(library_similarities, key=library_similarities.get, reverse=True)[:10]:
+    print("Library: {0}: - Score: {1}".format(library, library_similarities[library]))
+
+
+
+
 
 
 
@@ -316,12 +504,12 @@ for similarity in project_similarities:
 # plt.show()
 
 
-# write out coordinates to file
-fcoords = open("data/coords.csv", 'wb')
-for vector in lsi[corpus]:
-    if len(vector) != 2:
-        continue
-    fcoords.write("%6.4f\t%6.4f\n" % (vector[0][1], vector[1][1]))
-fcoords.close()
+# # write out coordinates to file
+# fcoords = open("data/coords.csv", 'wb')
+# for vector in lsi[corpus]:
+#     if len(vector) != 2:
+#         continue
+#     fcoords.write("%6.4f\t%6.4f\n" % (vector[0][1], vector[1][1]))
+# fcoords.close()
 
 

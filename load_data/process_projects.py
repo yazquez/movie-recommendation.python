@@ -32,7 +32,7 @@ def process_python_file(project, file_path):
         for line in f:
             match = re.search(pattern, line)
             if match:
-                if match.group(1) != None:
+                if match.group(1) is not None:
                     add_to_list(match.group(1))
                 else:
                     add_to_list(match.group(2))

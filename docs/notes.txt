@@ -1,5 +1,8 @@
 TODO
 [ ] Detección del idioma del projecto
+[X] Cuando se esta procesando un readme para descomponerlo en sus palabras descartar las palabras que sean numeros 4000
+[X] Excluir las librerias que empiecen por "." , ejemplo "..common"
+[ ] Excluir palabras/librerias que solo aparecen una vez
 
 
 https://api.github.com/search/repositories?q=language:python&sort=stars&order=desc
