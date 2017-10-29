@@ -3,11 +3,11 @@ from pymongo import MongoClient
 import re
 import sys
 
-ROOT_PATH = "d:/tmp/tfm_to_process/{0}"
+ROOT_PATH = "d:/tfm/tmp/{0}"
 
 def get_repository():
     client = MongoClient('localhost', 27017)
-    db = client.github
+    db = client.github10
     return db.projects
 
 def process_python_file2(project, file_path):
@@ -47,7 +47,8 @@ def process_readme_file(project, file_path):
 
 projects = get_repository()
 
-for project in projects.find({'done':False}):
+for project in projects.find():
+# for project in projects.find({'done':False}):
     try:
         print(".",end="")
         path = ROOT_PATH.format(project["id"])

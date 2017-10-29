@@ -13,6 +13,7 @@ def proccess_url(git_url):
             if not item in library:
                 library.append(item)
 
+        print("Processing file", file_path)
         library = project['library']
         pattern = '(?m)^(?:from[ ]+(\S+)[ ]+)?import[ ]+(\S+)[ ]*$'
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -51,8 +52,9 @@ def proccess_url(git_url):
 
     return project
 
-project = proccess_url("https://github.com/yazquez/movie-recommendation.python.git")
-print(project)
+#project = proccess_url("https://github.com/yazquez/movie-recommendation.python.git")
+project = proccess_url("https://github.com/yazquez/programmable-agents_tensorflow.git")
+print(project['library'])
 
 
 
