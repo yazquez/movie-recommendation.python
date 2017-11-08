@@ -1,8 +1,19 @@
 TODO
 [ ] Detección del idioma del projecto
+[ ] Excluir palabras/librerias que solo aparecen una vez
+[ ] Eliminar de las palabras las letras únicas "a", "b", "c"
+[ ] Evaluar el numero de palabras de las descripciones (montar alguna grafica o algo así)
+[ ] Eliminar los proyectos con descripciones cortas
 [X] Cuando se esta procesando un readme para descomponerlo en sus palabras descartar las palabras que sean numeros 4000
 [X] Excluir las librerias que empiecen por "." , ejemplo "..common"
-[ ] Excluir palabras/librerias que solo aparecen una vez
+[X] Montar sistema para evaluar un modelo
+[X] Incluir la descomposición de palabras en el "pipeline"
+[X] Limpiar los ficheros readme vacios o con una longitud pequeña
+[X] Generar los conjuntos de train/test de forma aleatoria
+[X] Tratar los imports con comas lib1,lib2,lib3
+[X] Excluir los proyectos que no tengan librerias
+
+
 
 
 https://api.github.com/search/repositories?q=language:python&sort=stars&order=desc

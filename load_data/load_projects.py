@@ -28,12 +28,12 @@ from datetime import date, timedelta
 
 MIN_STARTS = 10
 START_DATE = date(2012, 1, 1)
-END_DATE = date(2017, 8, 28)
+END_DATE = date(2017, 10, 31)
 URL_PATTERN = 'https://api.github.com/search/repositories?q=language:Python+created:{0}+stars:>={1}&type=Repositories'
 
 def get_repository():
     client = MongoClient('localhost', 27017)
-    db = client.github
+    db = client.tfm
     return db.projects
 
 
@@ -45,14 +45,16 @@ def insert_project(github_project):
             'id': github_project["id"],
             'name': github_project["name"],
             'full_name': github_project["full_name"],
-            'created_at': github_project["id"],
+            'created_at': github_project["created_at"],
             'git_url': github_project["git_url"],
             'description': github_project["description"],
             'language': github_project["language"],
             'stars': github_project["stargazers_count"],
-            'done': False,
             'readme_txt': "",
+            'readme_words': [],
             'library': [],
+            'project_processed': False,
+            'data_processed': False,
             'raw_data': github_project
         }
         projects.insert(project)

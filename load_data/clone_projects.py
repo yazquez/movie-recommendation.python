@@ -5,10 +5,10 @@ from pymongo import MongoClient
 
 def get_repository():
     client = MongoClient('localhost', 27017)
-    db = client.github
+    db = client.tfm
     return db.projects
 
-ROOT_PATH = "d:/tmp/tfm_cloned"
+ROOT_PATH = "d:/tfm/tfm_cloned"
 CLONE_COMMAND = "git clone {0} {1}"
 
 os.chdir(ROOT_PATH)
@@ -17,9 +17,10 @@ projects = get_repository()
 
 for i in range(0,1000):
     try:
-        for project in projects.find({'done':False}):
+        for project in projects.find({'project_processed':False}):
             path = ROOT_PATH + "/" + str(project["id"])
             if not os.path.isdir(path):
+                print('cloning project')
                 os.system(CLONE_COMMAND.format(project["git_url"], project["id"]))
     except:
         pass
